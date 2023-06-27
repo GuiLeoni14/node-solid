@@ -1,23 +1,26 @@
 import { expect, describe, it } from 'vitest'
 import { RegisterUseCase } from './register'
 import { compare } from 'bcryptjs'
+import { InMemoryUsersRepository } from '@/repositories/in-memory/in-memory-users-repository'
+import { UserAlreadyExistsError } from './errors/user-already-exists-error'
 
 describe('Register use case', () => {
-  it('should hash user password upon registration', async () => {
-    const registerUseCase = new RegisterUseCase({
-      async findByEmail() {
-        return null
-      },
-      async create(data) {
-        return {
-          id: 'user-1',
-          name: data.name,
-          email: data.email,
-          password_hash: data.password_hash,
-          created_at: new Date(),
-        }
-      },
+  it('should be able to register', async () => {
+    const userRepository = new InMemoryUsersRepository()
+    const registerUseCase = new RegisterUseCase(userRepository)
+
+    const { user } = await registerUseCase.execute({
+      name: 'John Doe',
+      email: 'johndoe@gmail.com',
+      password: '123456',
     })
+
+    expect(user.id).toEqual(expect.any(String))
+  })
+
+  it('should hash user password upon registration', async () => {
+    const userRepository = new InMemoryUsersRepository()
+    const registerUseCase = new RegisterUseCase(userRepository)
 
     const { user } = await registerUseCase.execute({
       name: 'John Doe',
@@ -31,5 +34,26 @@ describe('Register use case', () => {
     )
 
     expect(isPasswordCorrectlyHashed).toBe(true)
+  })
+
+  it('should not be able to register with same email twice', async () => {
+    const userRepository = new InMemoryUsersRepository()
+    const registerUseCase = new RegisterUseCase(userRepository)
+
+    const email = 'johndoe@gmail.com'
+
+    await registerUseCase.execute({
+      name: 'John Doe',
+      email,
+      password: '123456',
+    })
+
+    expect(() =>
+      registerUseCase.execute({
+        name: 'John Doe',
+        email,
+        password: '123456',
+      }),
+    ).rejects.toBeInstanceOf(UserAlreadyExistsError)
   })
 })
